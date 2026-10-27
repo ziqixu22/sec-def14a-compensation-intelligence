@@ -1,0 +1,15 @@
+{
+  "matched_references": [
+    "Allstate 2023",
+    "Allstate 2024",
+    "Allstate 2025",
+    "Travelers 2023",
+    "Travelers 2024",
+    "Travelers 2025"
+  ],
+  "parsed_companies": [
+    "Allstate",
+    "Travelers"
+  ],
+  "reference_count": 6
+}
