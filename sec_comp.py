@@ -135,7 +135,7 @@ def candidates(html):
         for header_index, row in enumerate(rows[:8]):
             columns = [column_name(cell) for cell in row]
             required = {"executive", "pay_year", "salary", "stock_awards", "option_awards",
-                        "non_equity_incentive", "pension_change", "all_other", "total"}
+                        "non_equity_incentive", "all_other", "total"}
             if not required.issubset(columns):
                 continue
             if "summary compensation" not in table["context"].lower() and "summary compensation" not in " ".join(" ".join(r) for r in rows[:3]).lower():
@@ -311,6 +311,7 @@ def scan_narrative():
     terms = ("return on equity", "relative tsr", "performance net income roe",
              "performance shares", "annual cash bonus")
     results = []
+    structured = []
     with connect() as con:
         for filing in con.execute("SELECT * FROM filings").fetchall():
             try:
@@ -329,9 +330,23 @@ def scan_narrative():
                         results.append({"company": filing["company"], "filing_date": filing["filing_date"],
                                         "filing_url": filing["filing_url"], "term": term,
                                         "evidence_passage": passage, "review_status": "needs_review"})
+                        # A percentage in nearby prose is a candidate, not an approved
+                        # metric weight: it may describe a payout range or award mix.
+                        percentages = re.findall(r"(?<!\d)(\d{1,3}(?:\.\d+)?)\s*(?:%|percent)(?!\w)", passage, re.I)
+                        for percentage in percentages[:3]:
+                            if float(percentage) <= 100:
+                                structured.append({"company": filing["company"],
+                                                   "filing_date": filing["filing_date"],
+                                                   "filing_url": filing["filing_url"],
+                                                   "metric_term": term, "percentage_candidate": percentage,
+                                                   "evidence_passage": passage,
+                                                   "review_status": "needs_review"})
                         seen.add((term, passage))
     write_csv(OUT / "narrative_review_queue.csv",
               ("company", "filing_date", "filing_url", "term", "evidence_passage", "review_status"), results)
+    write_csv(OUT / "structured_incentive_candidates.csv",
+              ("company", "filing_date", "filing_url", "metric_term", "percentage_candidate",
+               "evidence_passage", "review_status"), structured)
     print(f"{len(results)} narrative passages for review")
 
 
@@ -362,6 +377,10 @@ def verify_live():
             JOIN compensation c USING(accession) WHERE c.row_number > 0 AND f.extraction_error IS NULL""")}
         if companies - parsed:
             raise ValueError(f"No live parsed DEF 14A for: {', '.join(sorted(companies - parsed))}")
+        failed = [dict(row) for row in con.execute(
+            "SELECT company,accession,extraction_error FROM filings WHERE extraction_error IS NOT NULL")]
+        if failed:
+            raise ValueError(f"SEC extraction exceptions remain: {failed}")
         with (ROOT / "data" / "verified_ceo.csv").open(newline="", encoding="utf-8") as stream:
             references = list(csv.DictReader(stream))
         matched = []
