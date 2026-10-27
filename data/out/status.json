@@ -1,8 +1,10 @@
 {
-  "generated_at_utc": "2026-10-27T04:19:41+00:00",
-  "approved_ceo_years": 7,
+  "generated_at_utc": "2026-10-27T08:04:50+00:00",
+  "approved_ceo_years": 13,
   "companies": [
+    "AIG",
     "Allstate",
+    "Hartford",
     "MetLife",
     "Travelers"
   ],
@@ -12,12 +14,14 @@
     2025
   ],
   "approval_methods": {
-    "manual_source_check": 4,
-    "rule_reconciled": 3
+    "manual_source_check": 8,
+    "rule_reconciled": 5
   },
   "filing_urls": [
     "https://www.sec.gov/Archives/edgar/data/1099219/000109921926000026/met-20260429.htm",
+    "https://www.sec.gov/Archives/edgar/data/5272/000000527226000039/aig-20260331.htm",
     "https://www.sec.gov/Archives/edgar/data/86312/000008631226000103/trv-20260406.htm",
+    "https://www.sec.gov/Archives/edgar/data/874766/000087476626000025/hig-20260409.htm",
     "https://www.sec.gov/Archives/edgar/data/899051/000089905126000063/all-20260410.htm"
   ]
 }
