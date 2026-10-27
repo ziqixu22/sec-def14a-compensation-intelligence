@@ -58,7 +58,7 @@ Import `data/out/powerbi_compensation.csv` and `data/out/powerbi_incentives.csv`
 
 Calculate year-over-year only within the same company and CEO, leaving the first available year blank. Allstate's disclosed 60/40 split is a performance-share **metric weighting**; Travelers' 60/40 split is the **mix of performance shares and options** by grant-date value. They are different concepts.
 
-The HTML preview is available now. A Power BI Service report has not yet been published because access to the user's workspace requires Microsoft reauthentication.
+The HTML preview is available now. A Power BI Service report has not yet been published. The signed-in personal workspace is available, but browser file upload requires enabling the ChatGPT Chrome extension's **Allow access to file URLs** setting. A seven-row Excel import file was prepared locally for the next upload attempt.
 
 ## Findings and remaining work
 
