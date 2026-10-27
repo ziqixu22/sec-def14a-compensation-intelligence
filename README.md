@@ -1,71 +1,73 @@
 # SEC DEF 14A Executive Compensation Intelligence
 
-An independent, review-first reproduction of an insurance executive compensation research workflow. Inconsistent spreadsheets and manual proxy-file reading motivate a small, source-linked data mart. The demo compares the same CEOs at Allstate and Travelers over pay years 2023–2025 using their 2026 proxy statements. It uses only public SEC disclosures and does not contain employer data.
+A source-linked, review-first reproduction of an insurance executive compensation research workflow. It turns inconsistent spreadsheet and proxy-file work into a small SQLite data mart and Power BI-ready exports. It uses public SEC filings only, with no employer data.
 
-## What is implemented
+## Current verified scope
+
+- Allstate and Travelers: CEO pay years 2023–2025; all six rows from 2026 proxy statements matched manually checked reference values field by field.
+- MetLife: CEO pay year 2025 from its 2026 proxy statement; the row passed automated component-to-total reconciliation, unique known CEO, latest-year, and plausibility rules. It does not yet have a separate manual reference check.
+- Seven approved CEO-year rows across three companies. Four historical rows have `manual_source_check`; three latest-year rows have `rule_reconciled` provenance.
+- GitHub Actions [refresh run #5](https://github.com/ziqixu22/sec-def14a-compensation-intelligence/actions/runs/40449087945) successfully fetched and parsed current SEC filings. The monthly schedule is configured; its first scheduled execution has not occurred yet.
+
+The [status file](data/out/status.json) and [live validation file](data/out/live_validation.json) record the current cohort and six reference matches. Filing year differs from pay year. MetLife is a life insurer; Allstate and Travelers are P&C insurers, so avoid treating their totals as a uniform peer benchmark.
+
+## Pipeline and controls
 
 | Stage | Method | Output |
 | --- | --- | --- |
-| Filing discovery | SEC submissions API, CIK and DEF 14A filing-year filter | Filing metadata and cached primary HTML |
-| Numeric extraction | HTML table header detection with `rowspan` and `colspan` expansion | SQLite candidate rows and review queue |
-| Narrative discovery | Keyword windows around ROE, TSR, performance shares and bonuses | Source-linked passages for analyst review |
-| Quality control | Raw row and filing URL retained; exact total reconciliation plus known CEO and latest-pay-year checks for automatic approval, with other rows queued | Approved-only CSV and exceptions file |
-| Analysis | Component-total reconciliation, stable CEO identity and company/year uniqueness | Six validated records, two Power BI CSVs and an HTML report |
+| Discover and fetch | SEC submissions API, CIK and DEF 14A filing-year filter; identifying User-Agent and paced requests | Filing metadata and cached primary HTML |
+| Parse | Summary Compensation Table header detection with merged-cell expansion | SQLite candidate rows and source-linked review queue |
+| Approve | Unique known latest-year CEO, component-total reconciliation, broad bounds; other rows wait for analyst review | Approved-only CSV, exceptions and raw-row provenance |
+| Scan narrative | Keyword passages around incentive terms | Narrative review queue, without inferred metrics or weights |
+| Analyze | One selected filing per company/pay year, reconciliation and year-over-year comparison only with a prior year | Two [Power BI CSVs](data/out/powerbi_compensation.csv) and an [HTML preview](data/out/report.html) |
 
-The quantitative and narrative paths are deliberately separate. A keyword hit is evidence to inspect, not an automatically verified metric or weight. An extracted table row is approved automatically only if it is the sole known CEO row for the latest pay year, its components reconcile to the total, and the total falls within a broad plausibility range; all other candidates need review. No LLM API, OCR, or hosted warehouse is used for this small cohort.
+An extracted row is not accepted merely because a table looks plausible. A keyword passage is evidence to inspect, not a verified plan metric. The reviewed incentive evidence CSV has two-company examples; MetLife incentives are not yet structured. No LLM API, OCR, or hosted warehouse is used for this small cohort.
 
-## Reproduce the reviewed demo offline
+## Reproduce
 
-Python 3.11+ is sufficient; there are no third-party packages.
+Python 3.11+; no third-party packages for the current HTML pipeline:
 
 ```bash
 python3 build_analysis.py
 python3 -m unittest discover -s tests -v
 ```
 
-Open `data/out/report.html`. The generator reads `data/verified_ceo.csv` and `data/incentive_evidence.csv`, checks that compensation components sum to the disclosed total and that `(company, executive, pay_year)` is unique, then writes `data/out/powerbi_compensation.csv` and `data/out/powerbi_incentives.csv`. The six CEO-year rows were manually checked against the 2026 [Allstate](https://www.sec.gov/Archives/edgar/data/899051/000089905126000063/all-20260410.htm) and [Travelers](https://www.sec.gov/Archives/edgar/data/86312/000008631226000103/trv-20260406.htm) Summary Compensation Tables. Each row retains its source URL. The reviewed demo is a bootstrap sample, not a claim that live bulk retrieval and approval succeeded on this machine.
-
-## Update from SEC filings
-
-Use your real name and contact email in the SEC User-Agent. The address below is a placeholder.
+The offline build seeds the six source-checked Allstate and Travelers CEO-year rows, validates component totals, and writes the exports and preview. To fetch live SEC filings, provide a real name and contact email in `SEC_USER_AGENT` (the example is a placeholder):
 
 ```bash
 export SEC_USER_AGENT="Your Name contact@your-domain.example"
-python3 sec_comp.py fetch --years 2026 2027
-python3 sec_comp.py extract
-python3 sec_comp.py scan-narrative
-python3 sec_comp.py export
+python3 sec_comp.py run --years 2025 2026
 ```
 
-`fetch` caches primary HTML and conservatively spaces SEC requests. `extract` stores possible Summary Compensation Table rows in SQLite without overriding prior reviews. `scan-narrative` writes `data/out/narrative_review_queue.csv`. `export` writes `review_queue.csv`, `bi_compensation.csv` (approved rows only) and `exceptions.csv`. Check queued candidates against the linked filings, correct any fields and set `review_status` to `approved` or `rejected` before importing them:
+The GitHub workflow uses the repository secret rather than committing contact information. It runs on the 15th of each month and can be dispatched manually. It uploads review and exception queues as artifacts, and publishes approved outputs only after `verify_live()` checks parsed coverage and all six Allstate/Travelers source-checked CEO rows. Review candidate records before promoting them:
 
 ```bash
 python3 sec_comp.py import-reviews data/out/review_queue.csv
 python3 sec_comp.py export
 ```
 
-`filings` is keyed by accession; `compensation` is keyed by accession and row number. Filing year and pay year are different. When successive filings repeat a pay year, choose the latest reviewed version for a company/executive/pay-year analytical view rather than counting both. Unsupported PDF-only, image or unusual layouts require manual handling.
+Rows retain SEC filing URL, accession and raw table text. `filings` is keyed by accession; `compensation` is keyed by accession and row number. Successive filings can repeat a pay year, so the analytical export selects the newest approved version.
 
-## Power BI build guide
+## Power BI report design
 
-Import both `data/out/powerbi_*.csv` files in Power BI Desktop. Set `pay_year` to whole number and the compensation amounts to currency. Use:
+Import `data/out/powerbi_compensation.csv` and `data/out/powerbi_incentives.csv` in Power BI Service or Desktop. Set `pay_year` to whole number and amounts to currency. Suggested visuals:
 
-1. A line or clustered column chart with `pay_year` on the X axis, `company` as legend and `total` as value, filtered to `role = CEO`.
-2. A stacked column chart for salary, stock awards, option awards, non-equity incentive, pension change and other compensation.
-3. An incentive evidence table with company, plan, metric, weight, summary and the filing URL.
+1. CEO SCT total by `pay_year`, with company legend, filtered to `role = CEO`.
+2. Compensation composition: salary, stock awards, option awards, non-equity incentive, pension change and all other.
+3. Source-linked incentive evidence table with plan, metric, weight, summary and filing URL.
 
-Calculate year-over-year change only within the same company and executive, leaving the first year blank. Allstate's disclosed 60/40 split is a performance-share *metric weighting*; Travelers' 60/40 split is the *mix of performance shares and options* by grant-date value. They are different concepts.
+Calculate year-over-year only within the same company and CEO, leaving the first available year blank. Allstate's disclosed 60/40 split is a performance-share **metric weighting**; Travelers' 60/40 split is the **mix of performance shares and options** by grant-date value. They are different concepts.
 
-The included HTML report is a cross-platform preview, not a `.pbix` dashboard. No Power BI Desktop file has been built or published.
+The HTML preview is available now. A Power BI Service report has not yet been published because access to the user's workspace requires Microsoft reauthentication.
 
-## Findings and limitations
+## Findings and remaining work
 
-For this six-row sample, 2025 CEO Summary Compensation Table totals changed by approximately **-14.3% for Allstate** and **+17.0% for Travelers** versus 2024. These are descriptive comparisons for two companies, not an industry estimate. Equity awards use grant-date accounting values; SCT total is neither realized pay nor a causal measure of business performance.
+Allstate 2025 CEO SCT total was approximately 14.3% below 2024, and Travelers was 17.0% above 2024. MetLife has only one approved pay year, so no year-over-year figure is reported. Equity awards use grant-date accounting values; SCT total is neither realized pay nor a causal measure of business performance.
 
-The parser has five passing tests using synthetic and real-filing-shaped fixtures. GitHub Actions [refresh run #3](https://github.com/ziqixu22/sec-def14a-compensation-intelligence/actions/runs/40448196736) downloaded and parsed 2025 and 2026 SEC filings for the two companies; all six CEO-year rows in the 2026 filings matched the manually checked reference values field by field (blank disclosures and zero treated alike). Its `live_validation.json` records this result. Two latest-year CEO rows passed the automatic approval rule, while the other four years retain manual source checks. The monthly scheduler has been configured but has not yet reached its first scheduled date. The result is a validated **two-company numeric pipeline**, not fully automated extraction of incentive-plan metrics. Narrative keyword passages still need human review. Manual review time and time savings have not been measured. A fair efficiency study would time manual lookup and extraction versus automated extraction **plus review** on the same filings, and track coverage and correction rates.
+The original five-company, fully automated target remains unfinished. AIG and Hartford, PDF-only or unusual layouts, CEO succession, structured incentive-plan metrics, and corresponding checks need further implementation. Narrative hits require analyst review. No manual review time or efficiency savings have been measured; a fair study should compare manual extraction with automation **plus review** on the same files and report coverage and correction rates.
 
-## Resume-safe wording
+## Resume wording
 
-> Built a review-first SEC DEF 14A executive compensation workflow with Python and SQLite, including merged-cell table parsing and source-linked incentive disclosure search; verified six CEO-year records across Allstate and Travelers (2023–2025) and produced Power BI-ready datasets and a trend report.
+> Built a monthly SEC DEF 14A executive compensation pipeline with Python, SQLite and GitHub Actions; parsed CEO pay for three insurers, matched six Allstate/Travelers CEO-year records against source-checked references, and produced source-linked Power BI datasets and a trend report.
 
-This is an independent reproduction. Do not describe it as a deployed employer system, a published `.pbix` dashboard, an LLM-based extraction system, or a quantified reduction in research time.
+This is an independent reproduction. Do not describe it as a deployed employer system, a published `.pbix` dashboard, a fully automated incentive-metric extractor, or a quantified reduction in research time.
