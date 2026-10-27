@@ -54,6 +54,30 @@ class ParsingTest(unittest.TestCase):
         <td>9,000,000</td><td>858,190</td><td>143,146</td><td>26,968,756</td></tr></table>"""
         self.assertEqual(candidates(html)[0]["total"], 26968756)
 
+    def test_aig_without_pension_column_and_hartford_with_pension(self):
+        aig = """<p>2025 Summary Compensation Table</p><table><tr>
+        <th>Name and Principal Position as of December 31, 2025</th><th>Year</th>
+        <th>Salary($)</th><th>Bonus($)</th><th>Stock Awards($)(1)</th>
+        <th>Option Awards($)(1)</th><th>Non-Equity Incentive Plan Compensation($)(2)</th>
+        <th>All Other Compensation($)(3)</th><th>Total($)</th></tr>
+        <tr><td>Peter Zaffino Chairman &amp; Chief Executive Officer</td><td>2025</td>
+        <td>1,500,000</td><td>—</td><td>14,084,855</td><td>4,374,994</td>
+        <td>12,000,000</td><td>500,200</td><td>32,460,049</td></tr></table>"""
+        hartford = """<p>Summary Compensation Table</p><table><tr>
+        <th>Name and Principal Position</th><th>Year</th><th>Salary ($)</th>
+        <th>Bonus ($)</th><th>Stock Awards($)(1)</th><th>Option Awards($)(2)</th>
+        <th>Non-Equity Incentive Plan Compensation($)(3)</th>
+        <th>Change in Pension Value and Nonqualified Deferred Compensation Earnings ($)(4)</th>
+        <th>All Other Compensation($)(5)</th><th>Total ($)</th></tr>
+        <tr><td>Christopher Swift Chairman and Chief Executive Officer</td><td>2025</td>
+        <td>1,200,000</td><td>—</td><td>10,982,790</td><td>3,412,500</td>
+        <td>5,808,000</td><td>30,468</td><td>680,454</td><td>22,114,212</td></tr></table>"""
+        self.assertEqual(candidates(aig)[0]["total"], 32460049)
+        self.assertIsNone(candidates(aig)[0]["pension_change"])
+        self.assertTrue(candidates(aig)[0]["reconciled"])
+        self.assertEqual(candidates(hartford)[0]["pension_change"], 30468)
+        self.assertTrue(candidates(hartford)[0]["reconciled"])
+
     def test_reference_import_is_idempotent_and_source_linked(self):
         old_db = sec_comp.DB
         with tempfile.TemporaryDirectory() as directory:
@@ -62,9 +86,9 @@ class ParsingTest(unittest.TestCase):
                 sec_comp.seed_reference()
                 sec_comp.seed_reference()
                 with sec_comp.connect() as con:
-                    self.assertEqual(con.execute("SELECT count(*) FROM filings").fetchone()[0], 2)
-                    self.assertEqual(con.execute("SELECT count(*) FROM compensation").fetchone()[0], 6)
-                    self.assertEqual(con.execute("SELECT count(*) FROM compensation WHERE review_status='approved' AND approval_method='manual_source_check'").fetchone()[0], 6)
+                    self.assertEqual(con.execute("SELECT count(*) FROM filings").fetchone()[0], 4)
+                    self.assertEqual(con.execute("SELECT count(*) FROM compensation").fetchone()[0], 12)
+                    self.assertEqual(con.execute("SELECT count(*) FROM compensation WHERE review_status='approved' AND approval_method='manual_source_check'").fetchone()[0], 12)
             finally:
                 sec_comp.DB = old_db
 
