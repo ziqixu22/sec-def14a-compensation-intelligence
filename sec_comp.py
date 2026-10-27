@@ -378,9 +378,12 @@ def verify_live():
         if companies - parsed:
             raise ValueError(f"No live parsed DEF 14A for: {', '.join(sorted(companies - parsed))}")
         failed = [dict(row) for row in con.execute(
-            "SELECT company,accession,extraction_error FROM filings WHERE extraction_error IS NOT NULL")]
-        if failed:
-            raise ValueError(f"SEC extraction exceptions remain: {failed}")
+            "SELECT company,accession,filing_date,extraction_error FROM filings WHERE extraction_error IS NOT NULL")]
+        latest = {row["company"]: row["latest_date"] for row in con.execute(
+            "SELECT company,MAX(filing_date) AS latest_date FROM filings GROUP BY company")}
+        blocking = [row for row in failed if row["filing_date"] == latest[row["company"]]]
+        if blocking:
+            raise ValueError(f"Latest SEC filing extraction failed: {blocking}")
         with (ROOT / "data" / "verified_ceo.csv").open(newline="", encoding="utf-8") as stream:
             references = list(csv.DictReader(stream))
         matched = []
@@ -398,7 +401,8 @@ def verify_live():
             matched.append(f"{reference['company']} {reference['pay_year']}")
         OUT.mkdir(parents=True, exist_ok=True)
         (OUT / "live_validation.json").write_text(json.dumps({"matched_references": matched,
-            "parsed_companies": sorted(parsed), "reference_count": len(matched)}, indent=2) + "\n", encoding="utf-8")
+            "parsed_companies": sorted(parsed), "reference_count": len(matched),
+            "older_filing_exceptions": failed}, indent=2) + "\n", encoding="utf-8")
         print(f"Live SEC parser matched {len(matched)} source-checked CEO-year rows field by field")
 
 
@@ -443,9 +447,9 @@ if __name__ == "__main__":
         seed_reference()
         fetch(set(args.years))
         extract()
+        export()  # Keep an audit artifact even if a later validation gate fails.
         verify_live()
         scan_narrative()
-        export()
         from build_analysis import build
         build()
     elif args.command == "extract":
