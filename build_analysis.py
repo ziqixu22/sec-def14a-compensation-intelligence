@@ -105,7 +105,7 @@ table{{width:100%;border-collapse:collapse;font-size:.93rem}}td,th{{padding:10px
 .track{{height:22px;background:#e9edf5;border-radius:5px}}.bar{{height:100%;background:#1875bb;border-radius:5px}}
 .bar.travelers{{background:#27a489}}.note{{color:#526177;font-size:.88rem}}a{{color:#1454aa}}
 @media(max-width:700px){{.grid{{grid-template-columns:1fr}}.barrow{{grid-template-columns:105px 1fr 70px;font-size:.8rem}}}}</style>
-<main><h1>SEC 高管薪酬情报｜复现样本</h1><p class="lead">DEF 14A · {len(set(r['company'] for r in rows))} 家财产险公司 · {min(int(r['pay_year']) for r in rows)}–{max(int(r['pay_year']) for r in rows)} 薪酬年度 · SEC Summary Compensation Table</p>
+<main><h1>SEC 高管薪酬情报｜复现样本</h1><p class="lead">DEF 14A · {len(set(r['company'] for r in rows))} 家美国上市保险公司 · {min(int(r['pay_year']) for r in rows)}–{max(int(r['pay_year']) for r in rows)} 薪酬年度 · SEC Summary Compensation Table</p>
 <div class="grid"><div class="card"><div class="metric">{len(set(r['company'] for r in rows))}</div>公司</div><div class="card"><div class="metric">{len(rows)}</div>已批准记录</div>
 <div class="card"><div class="metric">100%</div>组成项与披露总额核对一致</div></div>
 <section class="card"><h2>CEO 披露薪酬总额</h2>{''.join(bars)}<p class="note">单位：美元。薪酬年度不是文件提交年度；SCT 采用授予日会计价值，不代表实际兑现收入。</p></section>
@@ -113,8 +113,8 @@ table{{width:100%;border-collapse:collapse;font-size:.93rem}}td,th{{padding:10px
 <tbody>{''.join(table)}</tbody></table></div><p class="note">同比仅比较同一公司、同一位 CEO。{'; '.join(insight)}。</p></section>
 <section class="card"><h2>激励方案披露摘录</h2><div class="overflow"><table><thead><tr><th>公司</th><th>计划</th><th>指标/形式</th><th>占比 %</th><th>证据摘要</th><th>原文</th></tr></thead>
 <tbody>{evidence}</tbody></table></div><p class="note">Allstate 的 60/40 是绩效股的考核指标权重；Travelers 的 60/40 是长期激励授予价值的形式占比，口径不同，不应直接横向比较。</p></section>
-<section class="card"><h2>业务解读与边界</h2><p>两家公司 2025 年的 CEO 披露总额走势不同。表内股权价值取决于授予日估值，非股权激励和养老金变动也会影响同比；因此不能仅凭总额推断经营绩效或实际到手金额。</p>
-<p>这是一份两家公司示范样本，不能代表行业平均水平。候选表格抽取须与 SEC 原文核对；跨文件的重复薪酬年度按最新核对版本保留。节省工时需另做人工与自动化加审核的计时对照。</p></section>
+<section class="card"><h2>业务解读与边界</h2><p>各公司 CEO 披露总额的年度走势受授予日股权估值、非股权激励和养老金变动影响；因此不能仅凭总额推断经营绩效或实际到手金额。</p>
+<p>这是示范样本，且含不同险种的公司，不能代表行业平均水平。候选表格抽取须与 SEC 原文核对；跨文件的重复薪酬年度按最新核对版本保留。节省工时需另做人工与自动化加审核的计时对照。</p></section>
 <p class="note">数据文件：powerbi_compensation.csv、powerbi_incentives.csv；生成：python3 build_analysis.py。</p></main></html>'''
     (OUT / "report.html").write_text(html, encoding="utf-8")
     (OUT / "status.json").write_text(json.dumps({
