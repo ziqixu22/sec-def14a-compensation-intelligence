@@ -32,6 +32,7 @@ jobs:
           path: |
             data/out/review_queue.csv
             data/out/narrative_review_queue.csv
+            data/out/structured_incentive_candidates.csv
             data/out/exceptions.csv
             data/out/live_validation.json
           if-no-files-found: ignore
