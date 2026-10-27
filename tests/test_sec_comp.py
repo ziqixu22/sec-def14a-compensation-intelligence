@@ -78,6 +78,18 @@ class ParsingTest(unittest.TestCase):
         self.assertEqual(candidates(hartford)[0]["pension_change"], 30468)
         self.assertTrue(candidates(hartford)[0]["reconciled"])
 
+    def test_complete_header_after_long_preface(self):
+        html = "<p>Summary Compensation Table</p><p>" + "explanatory notes " * 100 + "</p>" + """<table><tr>
+        <th>Name and Principal Position</th><th>Year</th><th>Salary ($)</th>
+        <th>Stock Awards($)</th><th>Option Awards($)</th>
+        <th>Non-Equity Incentive Plan Compensation($)</th>
+        <th>Change in Pension Value and Non-qualified Deferred Compensation Earnings($)</th>
+        <th>All Other Compensation($)</th><th>Total ($)</th></tr>
+        <tr><td>Michel A. Khalaf President and CEO</td><td>2024</td>
+        <td>1,500,000</td><td>11,590,462</td><td>1,672,128</td><td>4,600,000</td>
+        <td>636,545</td><td>322,044</td><td>20,321,179</td></tr></table>"""
+        self.assertEqual(candidates(html)[0]["total"], 20321179)
+
     def test_reference_import_is_idempotent_and_source_linked(self):
         old_db = sec_comp.DB
         with tempfile.TemporaryDirectory() as directory:
@@ -86,9 +98,9 @@ class ParsingTest(unittest.TestCase):
                 sec_comp.seed_reference()
                 sec_comp.seed_reference()
                 with sec_comp.connect() as con:
-                    self.assertEqual(con.execute("SELECT count(*) FROM filings").fetchone()[0], 4)
-                    self.assertEqual(con.execute("SELECT count(*) FROM compensation").fetchone()[0], 12)
-                    self.assertEqual(con.execute("SELECT count(*) FROM compensation WHERE review_status='approved' AND approval_method='manual_source_check'").fetchone()[0], 12)
+                    self.assertEqual(con.execute("SELECT count(*) FROM filings").fetchone()[0], 5)
+                    self.assertEqual(con.execute("SELECT count(*) FROM compensation").fetchone()[0], 14)
+                    self.assertEqual(con.execute("SELECT count(*) FROM compensation WHERE review_status='approved' AND approval_method='manual_source_check'").fetchone()[0], 14)
             finally:
                 sec_comp.DB = old_db
 
