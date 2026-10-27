@@ -9,10 +9,10 @@ An independent, review-first reproduction of an insurance executive compensation
 | Filing discovery | SEC submissions API, CIK and DEF 14A filing-year filter | Filing metadata and cached primary HTML |
 | Numeric extraction | HTML table header detection with `rowspan` and `colspan` expansion | SQLite candidate rows and review queue |
 | Narrative discovery | Keyword windows around ROE, TSR, performance shares and bonuses | Source-linked passages for analyst review |
-| Quality control | Raw row and filing URL retained; analyst approval before BI export | Approved-only CSV and exceptions file |
+| Quality control | Raw row and filing URL retained; exact total reconciliation plus known CEO and latest-pay-year checks for automatic approval, with other rows queued | Approved-only CSV and exceptions file |
 | Analysis | Component-total reconciliation and CEO-year uniqueness check | Six reviewed records, two Power BI CSVs and an HTML report |
 
-The quantitative and narrative paths are deliberately separate. A keyword hit is evidence to inspect, not an automatically verified metric or weight. An extracted table row is a candidate until approved. No LLM API, OCR, hosted warehouse or cloud scheduler is needed for this small cohort.
+The quantitative and narrative paths are deliberately separate. A keyword hit is evidence to inspect, not an automatically verified metric or weight. An extracted table row is approved automatically only if it is the sole known CEO row for the latest pay year, its components reconcile to the total, and the total falls within a broad plausibility range; all other candidates need review. No LLM API, OCR, or hosted warehouse is used for this small cohort.
 
 ## Reproduce the reviewed demo offline
 
@@ -37,7 +37,7 @@ python3 sec_comp.py scan-narrative
 python3 sec_comp.py export
 ```
 
-`fetch` caches primary HTML and conservatively spaces SEC requests. `extract` stores possible Summary Compensation Table rows in SQLite without overriding prior reviews. `scan-narrative` writes `data/out/narrative_review_queue.csv`. `export` writes `review_queue.csv`, `bi_compensation.csv` (approved rows only) and `exceptions.csv`. Check candidates against the linked filings, correct any fields and set `review_status` to `approved` or `rejected` before importing them:
+`fetch` caches primary HTML and conservatively spaces SEC requests. `extract` stores possible Summary Compensation Table rows in SQLite without overriding prior reviews. `scan-narrative` writes `data/out/narrative_review_queue.csv`. `export` writes `review_queue.csv`, `bi_compensation.csv` (approved rows only) and `exceptions.csv`. Check queued candidates against the linked filings, correct any fields and set `review_status` to `approved` or `rejected` before importing them:
 
 ```bash
 python3 sec_comp.py import-reviews data/out/review_queue.csv
@@ -62,7 +62,7 @@ The included HTML report is a cross-platform preview, not a `.pbix` dashboard. N
 
 For this six-row sample, 2025 CEO Summary Compensation Table totals changed by approximately **-14.3% for Allstate** and **+17.0% for Travelers** versus 2024. These are descriptive comparisons for two companies, not an industry estimate. Equity awards use grant-date accounting values; SCT total is neither realized pay nor a causal measure of business performance.
 
-The parser has four passing tests using synthetic and real-filing-shaped fixtures. The live SEC fetch-and-parse path has not been verified end to end in the current environment because command-line network access was unavailable. Source-reviewed demo values and the live-update pipeline should therefore be described separately. Manual review time and time savings have not been measured. A fair efficiency study would time manual lookup and extraction versus automated extraction **plus review** on the same filings, and track coverage and correction rates.
+The parser has five passing tests using synthetic and real-filing-shaped fixtures. The live SEC fetch-and-parse path has not yet been verified end to end; command-line network access in the development environment was unavailable. A scheduled GitHub Actions refresh is configured in `.github/workflows/refresh.yml`, but an actual successful run is required before calling it operational. The workflow refuses to pass if the only records are the manually checked demo rows. Source-reviewed demo values and live-update output should be described separately. Manual review time and time savings have not been measured. A fair efficiency study would time manual lookup and extraction versus automated extraction **plus review** on the same filings, and track coverage and correction rates.
 
 ## Resume-safe wording
 

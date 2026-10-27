@@ -15,8 +15,8 @@ ROOT = Path(__file__).parent
 RAW = ROOT / "data" / "raw"
 OUT = ROOT / "data" / "out"
 DB = ROOT / "data" / "compensation.sqlite"
-FIELDS = ("salary", "bonus", "stock_awards", "option_awards", "non_equity_incentive", "all_other", "total")
-EXPORT_FIELDS = ("accession", "row_number", "company", "filing_date", "filing_url", "executive", "pay_year", *FIELDS, "raw_row", "review_status")
+FIELDS = ("salary", "bonus", "stock_awards", "option_awards", "non_equity_incentive", "pension_change", "all_other", "total")
+EXPORT_FIELDS = ("accession", "row_number", "company", "filing_date", "filing_url", "executive", "pay_year", *FIELDS, "raw_row", "review_status", "approval_method")
 
 
 def clean(value):
@@ -91,6 +91,8 @@ def column_name(label):
         return "option_awards"
     if "allother" in label:
         return "all_other"
+    if "changeinpension" in label:
+        return "pension_change"
     if "salary" in label:
         return "salary"
     if "bonus" in label:
@@ -133,7 +135,7 @@ def candidates(html):
         for header_index, row in enumerate(rows[:8]):
             columns = [column_name(cell) for cell in row]
             required = {"executive", "pay_year", "salary", "stock_awards", "option_awards",
-                        "non_equity_incentive", "total"}
+                        "non_equity_incentive", "pension_change", "all_other", "total"}
             if not required.issubset(columns):
                 continue
             if "summary compensation" not in table["context"].lower() and "summary compensation" not in " ".join(" ".join(r) for r in rows[:3]).lower():
@@ -154,6 +156,8 @@ def candidates(html):
                 for field in FIELDS:
                     record[field] = money(item.get(field, ""))
                 if record["total"] is not None:
+                    components = sum(record[field] or 0 for field in FIELDS if field != "total")
+                    record["reconciled"] = abs(components - record["total"]) <= 1
                     found.append(record)
             if found:
                 return found
@@ -174,12 +178,17 @@ def connect():
       accession TEXT NOT NULL REFERENCES filings(accession),
       row_number INTEGER NOT NULL, executive TEXT NOT NULL, pay_year INTEGER NOT NULL,
       salary REAL, bonus REAL, stock_awards REAL, option_awards REAL,
-      non_equity_incentive REAL, all_other REAL, total REAL,
-      raw_row TEXT NOT NULL, review_status TEXT NOT NULL DEFAULT 'needs_review'
+      non_equity_incentive REAL, pension_change REAL, all_other REAL, total REAL,
+      raw_row TEXT NOT NULL, approval_method TEXT,
+      review_status TEXT NOT NULL DEFAULT 'needs_review'
         CHECK(review_status IN ('needs_review','approved','rejected')),
       PRIMARY KEY(accession,row_number)
     );
     """)
+    if "pension_change" not in {row[1] for row in con.execute("PRAGMA table_info(compensation)")}:
+        con.execute("ALTER TABLE compensation ADD COLUMN pension_change REAL")
+    if "approval_method" not in {row[1] for row in con.execute("PRAGMA table_info(compensation)")}:
+        con.execute("ALTER TABLE compensation ADD COLUMN approval_method TEXT")
     return con
 
 
@@ -218,24 +227,34 @@ def fetch(years):
 
 
 def extract():
+    with (ROOT / "companies.csv").open(newline="", encoding="utf-8") as stream:
+        ceos = {row["company"]: row["ceo_name"] for row in csv.DictReader(stream)}
     with connect() as con:
         for filing in con.execute("SELECT * FROM filings").fetchall():
-            if con.execute("SELECT 1 FROM compensation WHERE accession=? LIMIT 1", (filing["accession"],)).fetchone():
-                continue  # Preserve previous manual review.
+            if not filing["local_path"]:
+                continue  # The reviewed bootstrap row has no cached HTML yet.
             try:
                 html = Path(filing["local_path"]).read_text(encoding="utf-8", errors="replace")
                 rows = candidates(html)
                 if not rows:
-                    raise ValueError("No simple Summary Compensation Table candidate; inspect source manually")
+                    raise ValueError("No Summary Compensation Table candidate; inspect source manually")
+                latest_pay_year = int(filing["filing_date"][:4]) - 1
+                ceo_rows = [row for row in rows if row["executive"].startswith(ceos.get(filing["company"], "\0"))
+                            and row["pay_year"] == latest_pay_year]
+                unambiguous_ceo = len(ceo_rows) == 1
                 for number, row in enumerate(rows, 1):
-                    con.execute("""INSERT INTO compensation
+                    auto_approved = (unambiguous_ceo and row is ceo_rows[0] and row["reconciled"]
+                                     and 100_000 <= row["total"] <= 200_000_000)
+                    con.execute("""INSERT OR IGNORE INTO compensation
                       (accession,row_number,executive,pay_year,salary,bonus,stock_awards,
-                       option_awards,non_equity_incentive,all_other,total,raw_row)
-                      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       option_awards,non_equity_incentive,pension_change,all_other,total,raw_row,review_status,approval_method)
+                      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                       (filing["accession"], number, row["executive"], row["pay_year"],
-                       *(row[field] for field in FIELDS), row["raw_row"]))
+                       *(row[field] for field in FIELDS), row["raw_row"],
+                       "approved" if auto_approved else "needs_review",
+                       "rule_reconciled" if auto_approved else None))
                 con.execute("UPDATE filings SET extraction_error=NULL WHERE accession=?", (filing["accession"],))
-                print(f"{filing['accession']}: {len(rows)} candidates (review required)")
+                print(f"{filing['accession']}: {len(rows)} candidates; high-confidence CEO: {auto_approved if len(rows) == 1 else unambiguous_ceo}")
             except (OSError, ValueError) as exc:
                 con.execute("UPDATE filings SET extraction_error=? WHERE accession=?", (str(exc), filing["accession"]))
                 print(f"{filing['accession']}: {exc}")
@@ -253,7 +272,7 @@ def export():
     with connect() as con:
         rows = [dict(row) for row in con.execute("""SELECT c.accession,c.row_number,f.company,f.filing_date,f.filing_url,
           c.executive,c.pay_year,c.salary,c.bonus,c.stock_awards,c.option_awards,
-          c.non_equity_incentive,c.all_other,c.total,c.raw_row,c.review_status
+          c.non_equity_incentive,c.pension_change,c.all_other,c.total,c.raw_row,c.review_status,c.approval_method
           FROM compensation c JOIN filings f USING(accession)
           ORDER BY f.company,c.pay_year DESC,c.row_number""")]
         write_csv(OUT / "review_queue.csv", EXPORT_FIELDS, rows)
@@ -316,6 +335,35 @@ def scan_narrative():
     print(f"{len(results)} narrative passages for review")
 
 
+def seed_reference():
+    """Load the source-checked demo rows into the same mart as live extraction."""
+    with (ROOT / "data" / "verified_ceo.csv").open(newline="", encoding="utf-8") as stream, connect() as con:
+        for row in csv.DictReader(stream):
+            con.execute("""INSERT INTO filings(accession,company,cik,filing_date,filing_url,local_path)
+              VALUES(?,?,?,?,?,?) ON CONFLICT(accession) DO NOTHING""",
+              (row["accession"], row["company"], int(row["cik"]), row["filing_date"],
+               row["filing_url"], ""))
+            amounts = [money(row[field]) for field in FIELDS]
+            if any(value is None for value in amounts) or abs(sum(amounts[:-1]) - amounts[-1]) > 1:
+                raise ValueError(f"Invalid reference row: {row['company']} {row['pay_year']}")
+            con.execute("""INSERT OR IGNORE INTO compensation
+              (accession,row_number,executive,pay_year,salary,bonus,stock_awards,option_awards,
+               non_equity_incentive,pension_change,all_other,total,raw_row,review_status,approval_method)
+              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+              (row["accession"], -int(row["pay_year"]), row["executive"], int(row["pay_year"]),
+               *amounts, "Reference: " + row["verification"], "approved", "manual_source_check"))
+
+
+def verify_live():
+    """A scheduled run cannot pass by exporting only the reviewed bootstrap sample."""
+    with connect() as con:
+        companies = {row[0] for row in con.execute("SELECT DISTINCT company FROM filings")}
+        parsed = {row[0] for row in con.execute("""SELECT DISTINCT f.company FROM filings f
+            JOIN compensation c USING(accession) WHERE c.row_number > 0 AND f.extraction_error IS NULL""")}
+        if companies - parsed:
+            raise ValueError(f"No live parsed DEF 14A for: {', '.join(sorted(companies - parsed))}")
+
+
 def import_reviews(path):
     with connect() as con, path.open(newline="", encoding="utf-8") as stream:
         for row in csv.DictReader(stream):
@@ -327,10 +375,11 @@ def import_reviews(path):
             values = [money(row[field]) for field in FIELDS]
             if status == "approved" and (not row["executive"].strip() or
                                           not re.fullmatch(r"20\d{2}", row["pay_year"]) or
-                                          values[-1] is None):
+                                          values[-1] is None or
+                                          abs(sum(value or 0 for value in values[:-1]) - values[-1]) > 1):
                 raise ValueError(f"Incomplete approved record: {row['accession']}")
             result = con.execute("""UPDATE compensation SET executive=?,pay_year=?,salary=?,bonus=?,
-              stock_awards=?,option_awards=?,non_equity_incentive=?,all_other=?,total=?,review_status=?
+              stock_awards=?,option_awards=?,non_equity_incentive=?,pension_change=?,all_other=?,total=?,review_status=?,approval_method='analyst'
               WHERE accession=? AND row_number=? AND raw_row=?""",
               (row["executive"], int(row["pay_year"]), *values, status, row["accession"],
                int(row["row_number"]), row["raw_row"]))
@@ -343,18 +392,31 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("fetch").add_argument("--years", type=int, nargs="+", required=True)
+    commands.add_parser("run").add_argument("--years", type=int, nargs="+", required=True)
     commands.add_parser("extract")
     commands.add_parser("export")
     commands.add_parser("scan-narrative")
+    commands.add_parser("seed-reference")
     commands.add_parser("import-reviews").add_argument("path", type=Path)
     args = parser.parse_args()
     if args.command == "fetch":
         fetch(set(args.years))
+    elif args.command == "run":
+        seed_reference()
+        fetch(set(args.years))
+        extract()
+        verify_live()
+        scan_narrative()
+        export()
+        from build_analysis import build
+        build()
     elif args.command == "extract":
         extract()
     elif args.command == "export":
         export()
     elif args.command == "scan-narrative":
         scan_narrative()
+    elif args.command == "seed-reference":
+        seed_reference()
     else:
         import_reviews(args.path)
