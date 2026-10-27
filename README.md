@@ -19,7 +19,7 @@ The [status file](data/out/status.json) and [live validation file](data/out/live
 | Scan narrative | Keyword passages and nearby percentage candidates | Narrative and structured incentive candidate review queues; percentage candidates are not approved weights |
 | Analyze | One selected filing per company/pay year, reconciliation and year-over-year comparison only with a prior year | Two [Power BI CSVs](data/out/powerbi_compensation.csv) and an [HTML preview](data/out/report.html) |
 
-An extracted row is not accepted merely because a table looks plausible. A keyword passage is evidence to inspect, not a verified plan metric. The reviewed incentive evidence CSV has two-company examples; MetLife incentives are not yet structured. No LLM API, OCR, or hosted warehouse is used for this small cohort.
+An extracted row is not accepted merely because a table looks plausible. A keyword passage is evidence to inspect, not a verified plan metric. The reviewed incentive evidence CSV now has 19 entries across AIG, Allstate, Hartford and Travelers; MetLife incentives are not yet structured. Its `weight_basis` distinguishes scorecard/PSU metric weight from LTI award mix. The build rejects duplicate records, unreviewed or unsupported sources, invalid weights and incomplete disclosed groups. No LLM API, OCR, or hosted warehouse is used for this small cohort.
 
 ## Reproduce
 
@@ -54,7 +54,7 @@ For a separate Power BI build, import `data/out/powerbi_compensation.csv` and `d
 
 1. CEO SCT total by `pay_year`, with company legend, filtered to `role = CEO`.
 2. Optional compensation composition: salary, stock awards, option awards, non-equity incentive, pension change and all other.
-3. Source-linked incentive evidence table with plan, metric, weight, summary and filing URL.
+3. Source-linked incentive evidence table with plan, metric, weight, weight basis, summary and filing URL. The published visual may need to be edited to show the newly added `weight_basis` column after semantic-model refresh.
 
 For a year-over-year measure, compare only within the same company and CEO, leaving the first available year blank. The published trend visual shows yearly totals; it does not include a separate year-over-year measure. Allstate's disclosed 60/40 split is a performance-share **metric weighting**; Travelers' 60/40 split is the **mix of performance shares and options** by grant-date value. They are different concepts.
 
@@ -64,7 +64,7 @@ The source CSV is refreshed monthly by GitHub Actions. Power BI's daily import s
 
 Allstate 2025 CEO SCT total was approximately 14.3% below 2024, and Travelers was 17.0% above 2024. MetLife now has approved 2023–2025 pay years. Equity awards use grant-date accounting values; SCT total is neither realized pay nor a causal measure of business performance.
 
-The five-company live run and two Power BI manual refreshes have been verified, with the latter showing the full 15-row cohort. An actual future scheduled GitHub run and scheduled Power BI refresh remain unobserved. Unusual layouts, CEO succession, and structured incentive-plan weights require analyst review. Nearby percentages enter a candidate queue because they may refer to payout ranges or award mix rather than metric weight. No manual review time or efficiency savings have been measured; a fair study should compare manual extraction with automation **plus review** on the same files and report coverage and correction rates.
+The five-company live run and two Power BI manual refreshes have been verified, with the latter showing the full 15-row cohort. An actual future scheduled GitHub run and scheduled Power BI refresh remain unobserved. Unusual layouts, CEO succession and new or changed incentive plans require analyst review. Nearby percentages enter a candidate queue because they may refer to payout ranges or award mix rather than metric weight; only source-checked evidence enters the published incentives CSV. The reviewed AIG and Hartford 2025-plan metrics do not imply a general automatic approval capability. No manual review time or efficiency savings have been measured; a fair study should compare manual extraction with automation **plus review** on the same files and report coverage and correction rates.
 
 ## Resume wording
 
