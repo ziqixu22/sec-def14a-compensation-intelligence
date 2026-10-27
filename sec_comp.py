@@ -138,8 +138,8 @@ def candidates(html):
                         "non_equity_incentive", "all_other", "total"}
             if not required.issubset(columns):
                 continue
-            if "summary compensation" not in table["context"].lower() and "summary compensation" not in " ".join(" ".join(r) for r in rows[:3]).lower():
-                continue
+            # The full SEC column set is distinctive. Some proxies place long
+            # notes between the heading and table, beyond the context window.
             for body in rows[header_index + 1:]:
                 item = {}
                 for index, field in enumerate(columns):
