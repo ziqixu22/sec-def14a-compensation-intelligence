@@ -11,7 +11,9 @@
     "AIG 2025",
     "Hartford 2023",
     "Hartford 2024",
-    "Hartford 2025"
+    "Hartford 2025",
+    "MetLife 2023",
+    "MetLife 2024"
   ],
   "parsed_companies": [
     "AIG",
@@ -20,13 +22,6 @@
     "MetLife",
     "Travelers"
   ],
-  "reference_count": 12,
-  "older_filing_exceptions": [
-    {
-      "company": "MetLife",
-      "accession": "0001099219-25-000126",
-      "filing_date": "2025-04-29",
-      "extraction_error": "No Summary Compensation Table candidate; inspect source manually"
-    }
-  ]
+  "reference_count": 14,
+  "older_filing_exceptions": []
 }
