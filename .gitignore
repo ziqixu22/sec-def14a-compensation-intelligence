@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.venv/
+data/raw/
+data/compensation.sqlite
+data/out/review_queue.csv
+data/out/bi_compensation.csv
+data/out/exceptions.csv
+data/out/narrative_review_queue.csv
