@@ -66,7 +66,7 @@ The source CSV is refreshed monthly by GitHub Actions. Power BI's daily import s
 
 Allstate 2025 CEO SCT total was approximately 14.3% below 2024, and Travelers was 17.0% above 2024. MetLife has only one approved pay year, so no year-over-year figure is reported. Equity awards use grant-date accounting values; SCT total is neither realized pay nor a causal measure of business performance.
 
-The live five-company run and downstream Power BI update still require verification. Unusual layouts, CEO succession, and structured incentive-plan weights require analyst review. Nearby percentages enter a candidate queue because they may refer to payout ranges or award mix rather than metric weight. No manual review time or efficiency savings have been measured; a fair study should compare manual extraction with automation **plus review** on the same files and report coverage and correction rates.
+The live five-company run and downstream Power BI update still require verification. The 2025 MetLife filing remains an older-file extraction exception in the audit queue; a latest filing exception blocks publication. Unusual layouts, CEO succession, and structured incentive-plan weights require analyst review. Nearby percentages enter a candidate queue because they may refer to payout ranges or award mix rather than metric weight. No manual review time or efficiency savings have been measured; a fair study should compare manual extraction with automation **plus review** on the same files and report coverage and correction rates.
 
 ## Resume wording
 
