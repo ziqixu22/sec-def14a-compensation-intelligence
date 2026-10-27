@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate the SEC-reviewed sample and produce portable BI inputs and a report."""
 import csv
+from collections import defaultdict
 from datetime import datetime, timezone
 from html import escape
 import json
@@ -12,6 +13,7 @@ DATA = ROOT / "data"
 OUT = DATA / "out"
 COMPONENTS = ("salary", "bonus", "stock_awards", "option_awards",
               "non_equity_incentive", "pension_change", "all_other")
+WEIGHT_BASES = {"scorecard_metric", "psu_metric", "lti_vehicle_mix", "lti_award_mix", "undisclosed"}
 
 
 def read_csv(name):
@@ -24,6 +26,36 @@ def write_csv(name, rows):
         writer = csv.DictWriter(stream, fieldnames=rows[0].keys())
         writer.writeheader()
         writer.writerows(rows)
+
+
+def validate_incentives(rows, companies):
+    """Keep incomparable percentages separate and fail on incomplete reviewed plans."""
+    groups = defaultdict(list)
+    seen = set()
+    for row in rows:
+        key = tuple(row[field] for field in ("company", "filing_year", "plan", "metric"))
+        if key in seen or row["company"] not in companies:
+            raise ValueError(f"Duplicate or unknown incentive: {key}")
+        seen.add(key)
+        if (row["review_status"] != "manually_checked" or row["weight_basis"] not in WEIGHT_BASES
+                or not row["filing_url"].startswith("https://www.sec.gov/Archives/edgar/data/")
+                or not row["evidence_summary"].strip()):
+            raise ValueError(f"Missing reviewed SEC evidence or weight basis: {key}")
+        try:
+            int(row["filing_year"])
+            weight = float(row["weight_pct"]) if row["weight_pct"] else None
+        except ValueError as exc:
+            raise ValueError(f"Invalid incentive number: {key}") from exc
+        if row["weight_basis"] == "undisclosed":
+            if weight is not None:
+                raise ValueError(f"Undisclosed weight must be blank: {key}")
+        elif weight is None or not 0 < weight <= 100:
+            raise ValueError(f"Invalid disclosed weight: {key}")
+        if weight is not None:
+            groups[key[:3] + (row["weight_basis"],)].append(weight)
+    for group, weights in groups.items():
+        if abs(sum(weights) - 100) > 0.001:
+            raise ValueError(f"Incentive weights do not sum to 100: {group}")
 
 
 def build():
@@ -52,6 +84,7 @@ def build():
         row["verification"] = r["approval_method"]
         rows.append(row)
     incentives = read_csv("incentive_evidence.csv")
+    validate_incentives(incentives, names)
     if not rows:
         raise ValueError("No approved CEO records in the data mart")
     if len({(r["company"], r["executive"], r["pay_year"]) for r in rows}) != len(rows):
@@ -91,6 +124,7 @@ def build():
             insight.append(f"{company}: {years[-1]} CEO SCT total {change:+.1f}% year over year")
     evidence = "".join(f'<tr><td>{escape(r["company"])}</td><td>{escape(r["plan"])}</td>'
                        f'<td>{escape(r["metric"])}</td><td>{escape(r["weight_pct"] or "—")}</td>'
+                       f'<td>{escape(r["weight_basis"])}</td>'
                        f'<td>{escape(r["evidence_summary"])}</td>'
                        f'<td><a href="{escape(r["filing_url"])}">SEC filing</a></td></tr>'
                        for r in incentives)
@@ -111,8 +145,8 @@ table{{width:100%;border-collapse:collapse;font-size:.93rem}}td,th{{padding:10px
 <section class="card"><h2>CEO 披露薪酬总额</h2>{''.join(bars)}<p class="note">单位：美元。薪酬年度不是文件提交年度；SCT 采用授予日会计价值，不代表实际兑现收入。</p></section>
 <section class="card"><h2>变化与薪酬结构</h2><div class="overflow"><table><thead><tr><th>公司</th><th>年度</th><th>SCT 总额</th><th>同比</th><th>股权授予价值占比</th><th>原文</th></tr></thead>
 <tbody>{''.join(table)}</tbody></table></div><p class="note">同比仅比较同一公司、同一位 CEO。{'; '.join(insight)}。</p></section>
-<section class="card"><h2>激励方案披露摘录</h2><div class="overflow"><table><thead><tr><th>公司</th><th>计划</th><th>指标/形式</th><th>占比 %</th><th>证据摘要</th><th>原文</th></tr></thead>
-<tbody>{evidence}</tbody></table></div><p class="note">Allstate 的 60/40 是绩效股的考核指标权重；Travelers 的 60/40 是长期激励授予价值的形式占比，口径不同，不应直接横向比较。</p></section>
+<section class="card"><h2>激励方案披露摘录</h2><div class="overflow"><table><thead><tr><th>公司</th><th>计划</th><th>指标/形式</th><th>占比 %</th><th>权重口径</th><th>证据摘要</th><th>原文</th></tr></thead>
+<tbody>{evidence}</tbody></table></div><p class="note">scorecard_metric 与 psu_metric 是考核指标权重；lti_vehicle_mix 与 lti_award_mix 是长期激励授予构成。不同口径不应直接横向比较。</p></section>
 <section class="card"><h2>业务解读与边界</h2><p>各公司 CEO 披露总额的年度走势受授予日股权估值、非股权激励和养老金变动影响；因此不能仅凭总额推断经营绩效或实际到手金额。</p>
 <p>这是示范样本，且含不同险种的公司，不能代表行业平均水平。候选表格抽取须与 SEC 原文核对；跨文件的重复薪酬年度按最新核对版本保留。节省工时需另做人工与自动化加审核的计时对照。</p></section>
 <p class="note">数据文件：powerbi_compensation.csv、powerbi_incentives.csv；生成：python3 build_analysis.py。</p></main></html>'''
