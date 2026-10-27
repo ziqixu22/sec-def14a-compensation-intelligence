@@ -372,7 +372,8 @@ def verify_live():
             if len(rows) != 1:
                 raise ValueError(f"Expected one live CEO row for {reference['company']} {reference['pay_year']}; got {len(rows)}")
             row = rows[0]
-            mismatched = [field for field in FIELDS if row[field] != money(reference[field])]
+            mismatched = [field for field in FIELDS
+                          if (row[field] or 0) != (money(reference[field]) or 0)]
             if mismatched:
                 raise ValueError(f"Live SEC values differ from reviewed reference for {reference['company']} {reference['pay_year']}: {mismatched}")
             matched.append(f"{reference['company']} {reference['pay_year']}")
