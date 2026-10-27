@@ -33,12 +33,13 @@ jobs:
             data/out/review_queue.csv
             data/out/narrative_review_queue.csv
             data/out/exceptions.csv
+            data/out/live_validation.json
           if-no-files-found: ignore
       - name: Publish reviewed and rule-reconciled outputs
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add data/out/powerbi_compensation.csv data/out/powerbi_incentives.csv data/out/report.html data/out/status.json
+          git add data/out/powerbi_compensation.csv data/out/powerbi_incentives.csv data/out/report.html data/out/status.json data/out/live_validation.json
           if ! git diff --cached --quiet; then
             git commit -m 'Refresh SEC compensation report'
             git push

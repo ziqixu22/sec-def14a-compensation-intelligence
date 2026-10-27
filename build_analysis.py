@@ -34,13 +34,13 @@ def build():
             c.executive,c.pay_year,c.salary,c.bonus,c.stock_awards,c.option_awards,
             c.non_equity_incentive,c.pension_change,c.all_other,c.total,c.approval_method,c.row_number
             FROM compensation c JOIN filings f USING(accession)
-            WHERE c.review_status='approved' ORDER BY f.filing_date DESC,c.row_number ASC""")]
+            WHERE c.review_status='approved' ORDER BY f.filing_date DESC,(c.row_number>0) DESC,c.row_number ASC""")]
     selected = {}
     for r in approved:
         if not r["executive"].startswith(names.get(r["company"], "\0")):
             continue
         key = (r["company"], int(r["pay_year"]))
-        selected.setdefault(key, r)  # Newest filing; manual source check wins on a tie.
+        selected.setdefault(key, r)  # Newest filing; live parsed row wins on a tie.
     rows = []
     for r in selected.values():
         row = {key: r[key] for key in ("company", "cik", "filing_date", "accession", "filing_url",

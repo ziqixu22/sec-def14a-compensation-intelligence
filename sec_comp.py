@@ -254,7 +254,7 @@ def extract():
                        "approved" if auto_approved else "needs_review",
                        "rule_reconciled" if auto_approved else None))
                 con.execute("UPDATE filings SET extraction_error=NULL WHERE accession=?", (filing["accession"],))
-                print(f"{filing['accession']}: {len(rows)} candidates; high-confidence CEO: {auto_approved if len(rows) == 1 else unambiguous_ceo}")
+                print(f"{filing['accession']}: {len(rows)} candidates; unambiguous latest-year CEO: {unambiguous_ceo}")
             except (OSError, ValueError) as exc:
                 con.execute("UPDATE filings SET extraction_error=? WHERE accession=?", (str(exc), filing["accession"]))
                 print(f"{filing['accession']}: {exc}")
@@ -362,6 +362,24 @@ def verify_live():
             JOIN compensation c USING(accession) WHERE c.row_number > 0 AND f.extraction_error IS NULL""")}
         if companies - parsed:
             raise ValueError(f"No live parsed DEF 14A for: {', '.join(sorted(companies - parsed))}")
+        with (ROOT / "data" / "verified_ceo.csv").open(newline="", encoding="utf-8") as stream:
+            references = list(csv.DictReader(stream))
+        matched = []
+        for reference in references:
+            rows = con.execute("""SELECT * FROM compensation
+                WHERE accession=? AND row_number>0 AND pay_year=? AND executive LIKE ?""",
+                (reference["accession"], int(reference["pay_year"]), reference["executive"] + "%")).fetchall()
+            if len(rows) != 1:
+                raise ValueError(f"Expected one live CEO row for {reference['company']} {reference['pay_year']}; got {len(rows)}")
+            row = rows[0]
+            mismatched = [field for field in FIELDS if row[field] != money(reference[field])]
+            if mismatched:
+                raise ValueError(f"Live SEC values differ from reviewed reference for {reference['company']} {reference['pay_year']}: {mismatched}")
+            matched.append(f"{reference['company']} {reference['pay_year']}")
+        OUT.mkdir(parents=True, exist_ok=True)
+        (OUT / "live_validation.json").write_text(json.dumps({"matched_references": matched,
+            "parsed_companies": sorted(parsed), "reference_count": len(matched)}, indent=2) + "\n", encoding="utf-8")
+        print(f"Live SEC parser matched {len(matched)} source-checked CEO-year rows field by field")
 
 
 def import_reviews(path):
