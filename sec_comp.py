@@ -309,7 +309,9 @@ class VisibleText(HTMLParser):
 def scan_narrative():
     """Retrieve reviewable passages, never infer metrics/weights without a human."""
     terms = ("return on equity", "relative tsr", "performance net income roe",
-             "performance shares", "annual cash bonus")
+             "performance shares", "annual cash bonus", "combined ratio",
+             "adjusted tangible book value", "stock options", "core earnings",
+             "aati", "total shareholder return")
     results = []
     structured = []
     with connect() as con:
