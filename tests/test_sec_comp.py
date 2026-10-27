@@ -4,11 +4,21 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from build_analysis import read_csv, validate_incentives
 import sec_comp
 from sec_comp import candidates, money
 
 
 class ParsingTest(unittest.TestCase):
+    def test_reviewed_incentive_weights_and_basis(self):
+        rows = read_csv("incentive_evidence.csv")
+        validate_incentives(rows, {"AIG", "Allstate", "Hartford", "Travelers"})
+        self.assertEqual(len(rows), 19)
+        altered = [dict(row) for row in rows]
+        altered[0]["weight_pct"] = "80"
+        with self.assertRaisesRegex(ValueError, "sum to 100"):
+            validate_incentives(altered, {"AIG", "Allstate", "Hartford", "Travelers"})
+
     def test_summary_table_not_performance_table(self):
         html = """<p>Summary Compensation Table</p><table>
         <tr><th>Name and Principal Position</th><th>Year</th><th>Salary ($)</th><th>Stock Awards ($)</th><th>Option Awards ($)</th><th>Non-Equity Incentive Plan Compensation ($)</th><th>Change in Pension Value ($)</th><th>All Other Compensation ($)</th><th>Total ($)</th></tr>
