@@ -1,0 +1,20 @@
+{
+  "generated_at_utc": "2026-10-27T04:05:15+00:00",
+  "approved_ceo_years": 6,
+  "companies": [
+    "Allstate",
+    "Travelers"
+  ],
+  "pay_years": [
+    2023,
+    2024,
+    2025
+  ],
+  "approval_methods": {
+    "manual_source_check": 6
+  },
+  "filing_urls": [
+    "https://www.sec.gov/Archives/edgar/data/86312/000008631226000103/trv-20260406.htm",
+    "https://www.sec.gov/Archives/edgar/data/899051/000089905126000063/all-20260410.htm"
+  ]
+}
