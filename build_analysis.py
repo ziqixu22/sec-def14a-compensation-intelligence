@@ -45,6 +45,9 @@ def build():
     for r in selected.values():
         row = {key: r[key] for key in ("company", "cik", "filing_date", "accession", "filing_url",
                                      "executive", "pay_year", *COMPONENTS, "total")}
+        row["executive"] = names[r["company"]]  # Stable person key; SEC cells also contain changing role labels.
+        for field in COMPONENTS:
+            row[field] = row[field] or 0
         row["role"] = "CEO"
         row["verification"] = r["approval_method"]
         rows.append(row)
